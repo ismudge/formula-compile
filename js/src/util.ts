@@ -203,6 +203,9 @@ export const formulaFormat = (()=>{
         rawAtomicFormula += `)`;
       }
       return rawAtomicFormula;
+    },
+    FormulaCELLTPLLoc: (obj, newLine,space)=>{
+      return `_@${obj.cellLoc}`
     }
   }
 
