@@ -6,27 +6,11 @@
  * @coder.yang2010@gmail.com
  * @Date    2020/7/9
  **/
-import {parseFormula} from '../index'
 import {FormulaTSVisitor} from "../FormulaTSVisitor";
 import {toJSON, formulaFormat} from "../util";
 
+
 describe('公式测试', () => {
-  it('基本公式测试', async () => {
-    for (let i = 0, iLen = formulas.length; i < iLen; i++) {
-      let formula = formulas[i];
-      try {
-        let start  = Date.now();
-        let tree  = parseFormula(formula);
-        let parseEnd  = Date.now();
-        let treeResult =toJSON(tree);
-        expect(treeResult).toMatchSnapshot('公式'+i);
-        let jsonEnd  = Date.now();
-        console.log(`公式parse${i}用时${jsonEnd-start} -解析用时${parseEnd-start} ms - ${jsonEnd-parseEnd}ms 长度:${formula.length}`);
-      } catch(e) {
-        console.log(e)
-      }
-    }
-  });
 
   it('visitor处理',async()=>{
     let visitor  = new FormulaTSVisitor();
@@ -38,7 +22,7 @@ describe('公式测试', () => {
       }
       let timeFLag =`公式[${i}]耗时 长度:${formula?.length}`;
       console.time(timeFLag);
-      let ast  =visitor.toAst(formula);
+      let ast  =await visitor.toAst(formula);
       console.timeEnd(timeFLag);
       expect(ast).toMatchSnapshot('测试公式formulas['+i+']');
     }
@@ -53,13 +37,18 @@ describe('公式测试', () => {
       if(!formula) {
         continue;
       }
-      let ast  =visitor.toAst(formula);
-      debugger
+      let ast  =await visitor.toAst(formula);
       const f = formulaFormat(ast)
       expect(f===formula.replace(/\s+/g,"")).toBeTruthy()
     }
   })
+
 });
+
+
+
+
+
 
 
 

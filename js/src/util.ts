@@ -10,7 +10,17 @@ import {TerminalNodeImpl} from "antlr4/tree/Tree";
  * @Date    2020/7/9
  **/
 
+let config ={
+  isShowRange:true
+}
 
+export function toggleRangeInfo(flag?:boolean){
+  if(flag ==undefined || flag == null) {
+    config.isShowRange=!config.isShowRange
+  }else {
+    config.isShowRange = flag;
+  }
+}
 
 export function toJSON(tree:ParserRuleContext){
   let result  ={};
@@ -31,14 +41,12 @@ export function getTokenInfo(token:Token){
 
 
 export function getRangeInfo(ctx:ParserRuleContext){
-
-  // return "todo";
-  return {
+  return config.isShowRange?{
     depth:ctx.depth(),
     start: getTokenInfo(ctx.start),
     stop: getTokenInfo(ctx.stop),
     _source: ctx.getText(),
-  }
+  }:{ _source: ctx.getText()};
 }
 
 export function getTerminalNodeInfo(terminalNode:TerminalNodeImpl){
@@ -47,14 +55,14 @@ export function getTerminalNodeInfo(terminalNode:TerminalNodeImpl){
   return {
     "!":"TerminalNodeImpl",
     value:terminalNode.getText(),
-    range:{
+    range:config.isShowRange?{
       // type:token.type,
       line:token.line,
       startIndex:token.start,
       stopIndex:token.stop,
       column:token.column,
       _source:terminalNode.getText()
-    }
+    }:{_source:terminalNode.getText()}
   }
 }
 function traverse(tree:ParserRuleContext,result){
@@ -62,13 +70,16 @@ function traverse(tree:ParserRuleContext,result){
   if(tree instanceof TerminalNodeImpl){
     let token = tree.getSymbol();
     // result.token=token;
-    result.range={
+
+    if(config.isShowRange){
+     result.range={
       type:token.type,
       line:token.line,
       startIndex:token.start,
       stopIndex:token.stop,
       column:token.column,
     };
+    }
     result.text =token.text;
   }else{
     let children = [];
@@ -96,9 +107,11 @@ export const formulaFormat = (()=>{
     let rawFormula = '';
     if (ast && Object.prototype.toString.call(ast.formulas) === "[object Array]") {
       ast.formulas.forEach((formula, index)=>{
-        rawFormula += formatAtomicFormula(formula)
-        if (index !== ast.formulas.length-1) {
-          rawFormula += ';'
+        if(formula){
+          rawFormula += formatAtomicFormula(formula)
+          if (index !== ast.formulas.length-1) {
+            rawFormula += ';'
+          }
         }
       })
     }
@@ -118,12 +131,34 @@ export const formulaFormat = (()=>{
     }
     const name = obj.name;
     const type = obj['!'];
+
+    if(!formulaStrategy[type]){
+      throw new Error('格式化为对应类型'+type);
+    }
+
     return rawAtomicFormula + formulaStrategy[type](obj, newLine, space);
   }
 
   var formulaStrategy = {
+    FormulaAssignExpress: (obj, newLine, space)=>{
+
+      const varName =obj.varName
+      const express =formatAtomicFormula(obj.express, false, space)
+      // debugger;
+      return `${varName}=${express}`;
+    },
+    FormulaTernaryExpression: (obj, newLine, space)=>{
+
+      const conditionExp =formatAtomicFormula(obj.condition, false, space)
+      const trueExp =formatAtomicFormula(obj.trueExp, false, space)
+      const falseExp =formatAtomicFormula(obj.falseExp, false, space)
+      return `${conditionExp}?${trueExp}:${falseExp}`;
+    },
     FormulaRefTemplateFunction: (obj, newLine, space)=>{
       return `RefTemplate(${obj.refSheet.value},${obj.refCell.value})`;
+    },
+    FormulaParamNull:(obj, newLine, space)=>{
+      return `null`
     },
     FormulaIfFunction: (obj, newLine, space)=>{
       let rawAtomicFormula = '';
@@ -185,7 +220,7 @@ export const formulaFormat = (()=>{
     },
     FormulaFunction: (obj, newLine,space)=>{
       let rawAtomicFormula = '';
-      const name = obj.name;      
+      const name = obj.name;
       if (typeof name === 'string') {
         rawAtomicFormula += `${name}(`;
         obj.params.forEach((param, paramIndex)=>{

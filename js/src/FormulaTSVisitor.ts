@@ -7,7 +7,6 @@
  * @Date    2020/7/9
  **/
 import {ParseTreeVisitor, TerminalNodeImpl} from 'antlr4/tree/Tree';
-import {parseFormula} from './index';
 import {ParserRuleContext} from 'antlr4';
 import { getRangeInfo, getTerminalNodeInfo, getTokenInfo} from './util';
 
@@ -24,16 +23,22 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
     super();
   }
 
-  toAst(formula: string): FormulaAst {
-    let context = parseFormula(formula);
+ async toAst(formula: string): Promise<FormulaAst> {
+    let parse=require('./index').parseFormula;
+    // console.time('vistor:parse');
+    let context = await parse(formula);
+   // console.timeEnd('vistor:parse');
      return this.visit(context);
   }
 
   visitFormulaUnit(ctx: ParserRuleContext) {
+
     return {
       '!': 'FormulaUnit',
       range: getRangeInfo(ctx),
-      formulas: this.visitChildren(ctx),
+      formulas: this.visitChildren(ctx).filter(item=>{
+        return !!item;
+      }),
     };
   }
 
@@ -68,8 +73,14 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
     };
   };
 
-
-
+  visitFormulaAssignExpress(ctx){
+    return {
+      '!': 'FormulaAssignExpress',
+      range: getRangeInfo(ctx),
+      varName:ctx.children[0].getText(),
+      express:this.visit(ctx.children[2])
+    };
+  }
 
   // Visit a parse tree produced by FormulaTSParser#formulaFunction.
   visitFormulaFunction(ctx) {
@@ -122,6 +133,7 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
 
   // Visit a parse tree produced by FormulaTSParser#formulaParamNum.
   visitFormulaParamNum(ctx:ParserRuleContext) {
+
     return {
       '!': 'FormulaParamNum',
       range: getRangeInfo(ctx),
@@ -137,6 +149,16 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
       range: getRangeInfo(ctx),
       value:content.substring(1,content.length-1)
     }
+  }
+
+
+// Visit a parse tree produced by FormulaTSParser#formulaParamNull.
+  visitFormulaParamNull(ctx) {
+    return {
+      '!': 'FormulaParamNull',
+      range: getRangeInfo(ctx),
+      value:ctx.getText()
+    };
   }
 
   // Visit a parse tree produced by FormulaTSParser#formulaCELLLoc.
@@ -163,16 +185,37 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
 
 
   }
+//公式模板引用位置.
+  visitFormulaCELLTPLLoc(ctx) {
+
+    let cellLoc=ctx.children[0].getText().replace("_@","");
+    return {
+      '!': 'FormulaCELLTPLLoc',
+      range: getRangeInfo(ctx),
+      cellLoc,
+    };
+  };
 
   // Visit a parse tree produced by FormulaTSParser#formulaExpress.
   visitFormulaExpress(ctx) {
     // TODO dong 2020/7/9 ast 解析的有问题.
+
     if(ctx.getChildCount()===1) {
       return {
         '!': 'FormulaExpress',
         range: getRangeInfo(ctx),
         express:this.visit(ctx.children),
       };
+``    } else if(ctx.getChildCount()===5 && ctx.children[1].getText()==='?' && ctx.children[3].getText()===':') {
+      //三元表达式;
+
+      return  {
+          '!': 'FormulaTernaryExpression',
+          range: getRangeInfo(ctx),
+          condition:this.visit(ctx.children[0]),
+          trueExp:this.visit(ctx.children[2]),
+          falseExp:this.visit(ctx.children[4]),
+        }
     } else if(ctx.getChildCount()===3) {
       //二元运算;
       // if(!this.visit(ctx.children[0])) {
@@ -194,10 +237,12 @@ export class FormulaTSVisitor extends ParseTreeVisitor {
 
 // Visit a parse tree produced by FormulaTSParser#formulaBracketExpress.
   visitFormulaBracketExpress (ctx) {
+    let express = ctx.children.slice(1,ctx.children.length-1).map(item=>this.visit(item));
+
     return {
       '!': 'FormulaBracketExpress',
       range: getRangeInfo(ctx),
-      express:this.visit(ctx.children),
+      express:express,
     };
   };
 
